@@ -678,7 +678,6 @@ footer {
   footer { flex-direction: column; gap: 0.5rem; text-align: center; }
 }
 </style>
-  <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 </head>
 <body>
 
@@ -929,12 +928,75 @@ footer {
     <p class="blog-post-arrow">Ler artigo →</p>
   </a>
   -->
-  <div class="blog-grid">
+  <div class="blog-grid" id="blog-grid">
     <div class="blog-placeholder">Em breve: artigos sobre inventário, adoção e planejamento patrimonial.</div>
     <div class="blog-placeholder"></div>
     <div class="blog-placeholder"></div>
   </div>
 </section>
+
+<script>
+(function() {
+  const REPO = 'bianic8-del/beatriz-carvalho-advocacia';
+  const API = 'https://api.github.com/repos/' + REPO + '/contents/posts';
+
+  function parseFrontmatter(text) {
+    const match = text.match(/^---\n([\s\S]*?)---/);
+    if (!match) return {};
+    const fm = {};
+    match[1].split('\n').forEach(line => {
+      const [key, ...rest] = line.split(':');
+      if (key && rest.length) fm[key.trim()] = rest.join(':').trim().replace(/^["']|["']$/g, '');
+    });
+    return fm;
+  }
+
+  async function loadPosts() {
+    try {
+      const res = await fetch(API);
+      if (!res.ok) return;
+      const files = await res.json();
+      const mdFiles = files.filter(f => f.name.endsWith('.md'));
+      if (!mdFiles.length) return;
+
+      const posts = await Promise.all(mdFiles.map(async f => {
+        const r = await fetch(f.download_url);
+        const text = await r.text();
+        const fm = parseFrontmatter(text);
+        return { ...fm, slug: f.name.replace('.md', '') };
+      }));
+
+      posts.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      const grid = document.getElementById('blog-grid');
+      grid.innerHTML = '';
+
+      posts.forEach(post => {
+        const a = document.createElement('a');
+        a.className = 'blog-post';
+        a.href = '/posts/' + post.slug + '.html';
+        a.innerHTML = \`
+          <p class="blog-post-tag">Artigo</p>
+          <h3 class="blog-post-title">\${post.title || 'Sem título'}</h3>
+          <p class="blog-post-excerpt">\${post.excerpt || ''}</p>
+          <p class="blog-post-arrow">Ler artigo →</p>
+        \`;
+        grid.appendChild(a);
+      });
+
+      while (grid.children.length < 3) {
+        const div = document.createElement('div');
+        div.className = 'blog-placeholder';
+        grid.appendChild(div);
+      }
+    } catch (e) {
+      console.log('Blog: nenhum artigo encontrado.');
+    }
+  }
+
+  loadPosts();
+})();
+</script>
 
 <!-- CONTATO -->
 <section class="contato fade-in" id="contato">
@@ -1013,17 +1075,6 @@ footer {
       e.preventDefault();
       const x = e.pageX - carousel.offsetLeft;
       carousel.scrollLeft = scrollLeft - (x - startX) * 1.5;
-    });
-  }
-</script>
-<script>
-  if (window.netlifyIdentity) {
-    window.netlifyIdentity.on("init", user => {
-      if (!user) {
-        window.netlifyIdentity.on("login", () => {
-          document.location.href = "/admin/";
-        });
-      }
     });
   }
 </script>
